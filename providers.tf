@@ -1,11 +1,11 @@
 
 data "aws_eks_cluster" "eks-cluster" {
-  name = module.eks.cluster_id
+  name =  module.base.cluster_id//module.eks.cluster_id
 }
 
 
 data "aws_eks_cluster_auth" "eks-cluster" {
-  name = module.eks.cluster_id
+  name = module.base.cluster_id//module.eks.cluster_id
 }
 
 
