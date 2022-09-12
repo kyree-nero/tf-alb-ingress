@@ -90,7 +90,11 @@ module "vpc" {
 
       }
     }
-
+/*
+    provisioner "local-exec" {
+        command = "aws eks update-kubeconfig --kubeconfig ${path.cwd}/.terraform/k8s-${self.name}.yaml --name ${self.name}"
+    }
+*/
     tags = var.tags
   }
 
@@ -111,29 +115,6 @@ module "lb_role" {
 
 
 
-data "aws_eks_cluster" "eks-cluster" {
-  name = module.eks.cluster_id
-}
-
-
-data "aws_eks_cluster_auth" "eks-cluster" {
-  name = module.eks.cluster_id
-}
-
-
-provider "kubernetes" {
-  host                   = data.aws_eks_cluster.eks-cluster.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.eks-cluster.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.eks-cluster.token
-}
-
-provider "helm" {
-  kubernetes {
-    host                   = data.aws_eks_cluster.eks-cluster.endpoint
-    cluster_ca_certificate = base64decode(data.aws_eks_cluster.eks-cluster.certificate_authority[0].data)
-    token                  = data.aws_eks_cluster_auth.eks-cluster.token
-  }
-}
 
 resource "kubernetes_service_account" "service-account" {
   metadata {
@@ -205,8 +186,10 @@ resource "helm_release" "app" {
     helm_release.lb
   ]
 
-}*/
+}
+*/
 
  //aws eks update-kubeconfig --kubeconfig kubeconfig/kube.config.yaml --name diu-eks-cluster
-  //export KUBECONFIG=./kubeconfig/kube.config.yaml 
+//export KUBECONFIG=./kubeconfig/kube.config.yaml 
 //kubectl get ingress/2048-ingress -n 2048-game
+//curl $(kubectl get ingress/2048-ingress -n 2048-game  | grep -v AGE | awk '{split($0,a," "); print a[4]}')
