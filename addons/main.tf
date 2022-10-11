@@ -1,33 +1,83 @@
 
-module "lb_role" {
-  source    = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
 
-  role_name = "${var.env_name}_eks_lb"
-  attach_load_balancer_controller_policy = true
 
-  oidc_providers = {
-    main = {
-      provider_arn               = var.oidc_provider_arn//module.base.oidc_provider_arn//module.eks.oidc_provider_arn
-      namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
+/*
+aws iam create-policy \
+    --policy-name AWSLoadBalancerControllerIAMPolicy \
+    --policy-document file://iam_policy.json
+    */
+
+resource "aws_iam_policy" "alb_policy" {
+  name        = "AWSLoadBalancerControllerIAMPolicy"
+  description = "My test policy"
+  policy = file("./addons/iam_policy.json")
+}
+
+data "aws_caller_identity" "current" {}
+
+
+data "aws_iam_policy_document" "alb_trust_policy_doc" {
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "Federated"
+      //identifiers  =  ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/oidc.eks.eu-west-1.amazonaws.com/id/C2F44D33C2E688F8C1BC301B2AADF081"]
+      //identifiers  =  ["$replace('arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${eks_oidc_url}','https://', '' )"]
+      //identifiers  =  ["$replace('arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${var.oidc_issuer_url}','https://', '' )"]
+      identifiers  =  [replace("arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${var.oidc_issuer_url}","https://", "" )]
+      
     }
+
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    condition {
+      test     = "ForAnyValue:StringEquals"
+      //variable = "oidc.eks.eu-west-1.amazonaws.com/id/C2F44D33C2E688F8C1BC301B2AADF081:aud"
+      variable = replace("${var.oidc_issuer_url}:aud","https://", "" ) 
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "ForAnyValue:StringEquals"
+      //variable = "oidc.eks.eu-west-1.amazonaws.com/id/C2F44D33C2E688F8C1BC301B2AADF081:sub"
+      variable = replace("${var.oidc_issuer_url}:sub","https://", "" ) 
+      values   = ["system:serviceaccount:kube-system:aws-load-balancer-controller"]
+    }
+
+    
   }
 }
 
 
 
-resource "kubernetes_service_account" "service-account" {
-  metadata {
-    name = "aws-load-balancer-controller"
-    namespace = "kube-system"
-    labels = {
-        "app.kubernetes.io/name"= "aws-load-balancer-controller"
-        "app.kubernetes.io/component"= "controller"
-    }
-    annotations = {
-      "eks.amazonaws.com/role-arn" = module.lb_role.iam_role_arn
-      "eks.amazonaws.com/sts-regional-endpoints" = "true"
-    }
+resource "aws_iam_role" "alb_role" {
+  name               = "AmazonEKSLoadBalancerControllerRole"
+  assume_role_policy = data.aws_iam_policy_document.alb_trust_policy_doc.json
+}
+
+
+
+resource "aws_iam_role_policy_attachment" "alb_policy_attach" {
+    role       = aws_iam_role.alb_role.name
+    policy_arn = aws_iam_policy.alb_policy.arn
+}
+
+
+resource "helm_release" "sa" {
+  name       = "sa"
+  chart      = "./helm-charts/alb-sa"
+  
+  
+
+  set {
+    name  = "account_id"
+    value = "${data.aws_caller_identity.current.account_id}"
   }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.alb_policy_attach
+  ]
 }
 
 
@@ -37,8 +87,9 @@ resource "helm_release" "lb" {
   repository = "https://aws.github.io/eks-charts"
   chart      = "aws-load-balancer-controller"
   namespace  = "kube-system"
+
   depends_on = [
-    kubernetes_service_account.service-account
+    helm_release.sa
   ]
 
   set {

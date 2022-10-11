@@ -23,3 +23,8 @@ variable "env_name" {
   description = "env_name"
   type = string
 }
+
+variable "oidc_issuer_url" {
+  description = "oidc_issuer_url"
+  type = string
+}

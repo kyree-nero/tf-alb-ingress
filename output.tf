@@ -1,5 +1,7 @@
 
-
+output "oidc_issuer_url" {
+    value = module.base.oidc_issuer_url
+}
 
 /*
 output "kubeconfig_command" {
