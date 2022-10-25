@@ -1,0 +1,47 @@
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: example-ingress
+# spec:
+#   rules:
+#   - host: {{ .Values.lb_dns_name }}
+#     http:
+#       paths:
+#         - path: /apple
+#           pathType: Prefix
+#           backend:
+#             service:
+#               name: apple-service
+#               port: 
+#                 number: 5678
+#         - path: /banana
+#           pathType: Prefix
+#           backend:
+#             service:
+#               name: banana-service
+#               port: 
+#                 number: 5678
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-fruit
+spec:
+  rules:
+  - host: {{ .Values.lb_dns_name }}
+    http:
+      paths:
+      - path: /banana
+        pathType: Prefix
+        backend:
+          service:
+            name: banana-service
+            port:
+              number: 5678
+      - path: /apple
+        pathType: Prefix
+        backend:
+          service:
+            name: apple-service
+            port:
+              number: 5678
+  ingressClassName: nginx
