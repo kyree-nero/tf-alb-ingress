@@ -30,7 +30,6 @@ metadata:
   name: ingress-myservicea
 spec:
   rules:
-  #- host: a0c1b47f597c441c48f90406ceb05f4d-322729133.eu-west-1.elb.amazonaws.com
   - host: {{ .Values.lb_dns_name }}
     http:
       paths:

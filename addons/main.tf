@@ -1,75 +1,55 @@
 
-module "lb_role" {
-  source    = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
-
-  role_name = "${var.env_name}_eks_lb"
-  attach_load_balancer_controller_policy = true
-
-  oidc_providers = {
-    main = {
-      provider_arn               = var.oidc_provider_arn//module.base.oidc_provider_arn//module.eks.oidc_provider_arn
-      namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
-    }
-  }
-}
 
 
-
-resource "kubernetes_service_account" "service-account" {
-  metadata {
-    name = "aws-load-balancer-controller"
-    namespace = "kube-system"
-    labels = {
-        "app.kubernetes.io/name"= "aws-load-balancer-controller"
-        "app.kubernetes.io/component"= "controller"
-    }
-    annotations = {
-      "eks.amazonaws.com/role-arn" = module.lb_role.iam_role_arn
-      "eks.amazonaws.com/sts-regional-endpoints" = "true"
-    }
-  }
-}
-
-
-
-resource "helm_release" "lb" {
-  name       = "aws-load-balancer-controller"
-  repository = "https://aws.github.io/eks-charts"
-  chart      = "aws-load-balancer-controller"
+resource "helm_release" "ingress-contr" {
+  name       = "nginx-ingress-controller"
+  repository = "https://helm.nginx.com/stable"
+  chart      = "nginx-ingress"
+  version = "0.15.0"
   namespace  = "kube-system"
+
+}
+
+//hackey wait for ingress to show a dns record
+data "aws_resourcegroupstaggingapi_resources" "load_balancer" {
+  resource_type_filters = ["elasticloadbalancing:loadbalancer"]
+
+  tag_filter {
+    key    = "kubernetes.io/service-name"
+    values = ["kube-system/nginx-ingress-controller-nginx-ingress"]
+  }
+
   depends_on = [
-    kubernetes_service_account.service-account
+    helm_release.ingress-contr
   ]
-
-  set {
-    name  = "region"
-    value = var.aws_region
-  }
-
-  set {
-    name  = "vpcId"
-    value = var.vpc_id//module.base.vpc_id//module.vpc.vpc_id
-  }
-
-  set {
-    name  = "image.repository"
-    value = "602401143452.dkr.ecr.eu-west-2.amazonaws.com/amazon/aws-load-balancer-controller"
-  }
-
-  set {
-    name  = "serviceAccount.create"
-    value = "false"
-  }
-
-  set {
-    name  = "serviceAccount.name"
-    value = "aws-load-balancer-controller"
-  }
-
-  set {
-    name  = "clusterName"
-    value = var.cluster-name
-  }
-
   
 }
+
+
+data "aws_elb" "this" {
+  name = split("/", 
+    data.aws_resourcegroupstaggingapi_resources.load_balancer.resource_tag_mapping_list[0].resource_arn
+  )[1]
+}
+
+
+resource "null_resource" "patience" {
+   depends_on = [ data.aws_elb.this, helm_release.ingress-contr ]
+    
+    triggers = {
+      lb_dns_name = "${data.aws_elb.this.dns_name}"
+    }
+
+    provisioner "local-exec" {
+      command = "sleep 300"
+    }
+}
+
+
+data "dns_a_record_set" "lb_dns_a" {
+  depends_on = [ "null_resource.patience" ]
+  host  = "${data.aws_elb.this.dns_name}"
+}
+
+
+
