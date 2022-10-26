@@ -31,6 +31,4 @@ module "apps"{
   depends_on = [
     module.addons
   ]
-
-
 }
