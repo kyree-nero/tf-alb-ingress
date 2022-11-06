@@ -24,11 +24,11 @@ module "addons" {
 
 //until we find a way to wait for the elb that the ingress creates... manually wait until this is ready... then open it up
 
-module "apps"{
-  source = "./apps"
+# module "apps"{
+#   source = "./apps"
 
-  lb_dns_name = module.addons.lb_dns_name
-  depends_on = [
-    module.addons
-  ]
-}
+#   lb_dns_name = module.addons.lb_dns_name
+#   depends_on = [
+#     module.addons
+#   ]
+# }
